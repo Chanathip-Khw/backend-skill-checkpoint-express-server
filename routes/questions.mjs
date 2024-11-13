@@ -1,5 +1,6 @@
 import { Router } from "express";
 import connectionPool from "../utils/db.mjs";
+import { validateCreateAnswer } from "../middlewares/answerValidation.mjs";
 
 const questionsRouter = Router();
 
@@ -29,35 +30,71 @@ questionsRouter.post("/", async (req, res) => {
   }
 });
 
-questionsRouter.post("/:questionId/answers", async (req, res) => {
-  if (!req.body.content) {
-    return res.status(400).json({
-      message: "Invalid request data.",
-    });
-  }
-  const { questionId } = req.params;
-  const newAnswer = {
-    ...req.body,
-  };
-  try {
-    const results = await connectionPool.query(
-      `select * from questions where id = $1`,
-      [questionId]
-    );
-    if (!results.rows[0]) {
-      return res.status(404).json({ message: "Question not found." });
+questionsRouter.post(
+  "/:questionId/answers",
+  [validateCreateAnswer],
+  async (req, res) => {
+    if (!req.body.content) {
+      return res.status(400).json({
+        message: "Invalid request data.",
+      });
     }
-    await connectionPool.query(
-      `insert into answers (content, question_id)
+    const { questionId } = req.params;
+    const newAnswer = {
+      ...req.body,
+    };
+    try {
+      const results = await connectionPool.query(
+        `select * from questions where id = $1`,
+        [questionId]
+      );
+      if (!results.rows[0]) {
+        return res.status(404).json({ message: "Question not found." });
+      }
+      await connectionPool.query(
+        `insert into answers (content, question_id)
           values ($1,$2)`,
-      [newAnswer.content, questionId]
+        [newAnswer.content, questionId]
+      );
+      return res.status(201).json({
+        message: "Answer created successfully.",
+      });
+    } catch (err) {
+      res.status(500).json({
+        message: "Unable to create question.",
+        error: err.message,
+      });
+    }
+  }
+);
+
+questionsRouter.post("/:questionId/vote", async (req, res) => {
+  const voteScore = req.body.vote;
+  const { questionId } = req.params;
+  if (!voteScore || (voteScore !== 1 && voteScore !== -1)) {
+    return res.status(400).json({ message: "Invalid vote value." });
+  }
+  const questionResult = await connectionPool.query(
+    `select * from questions where id = $1`,
+    [questionId]
+  );
+  if (!questionResult.rows[0]) {
+    return res.status(404).json({ message: "Question not found." });
+  }
+  try {
+    const voteResult = await connectionPool.query(
+      `insert into question_votes  (question_id, vote)
+      values ($1,$2)       
+        `,
+      [questionId, voteScore]
     );
-    return res.status(201).json({
-      message: "Answer created successfully.",
+    return res.status(200).json({
+      message: "Vote on the question has been recorded successfully.",
     });
   } catch (err) {
-    res.status(500).json({
-      message: "Unable to create question.",
+    return res.status(500).json({
+      message: "Unable to vote question.",
+      error: err.message,
     });
   }
 });
@@ -193,6 +230,9 @@ questionsRouter.delete("/:questionId", async (req, res) => {
         message: "Question not found.",
       });
     }
+    await connectionPool.query(`delete from answers where question_id=$1`, [
+      questionIdFromClient,
+    ]);
     return res
       .status(200)
       .json({ message: "Question post has been deleted successfully." });
@@ -216,9 +256,9 @@ questionsRouter.delete("/:questionId/answers", async (req, res) => {
     await connectionPool.query(`delete from answers where question_id = $1`, [
       questionId,
     ]);
-    return res
-      .status(200)
-      .json({ message: "All answers for the question have been deleted successfully." });
+    return res.status(200).json({
+      message: "All answers for the question have been deleted successfully.",
+    });
   } catch (err) {
     return res.status(500).json({
       message: "Unable to delete answers.",
