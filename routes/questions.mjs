@@ -5,7 +5,15 @@ import { validateCreateAnswer } from "../middlewares/answerValidation.mjs";
 const questionsRouter = Router();
 
 questionsRouter.post("/", async (req, res) => {
-  if (!req.body.title || !req.body.description || !req.body.category) {
+  const allowedKeys = ["title", "description", "category"];
+  const requestKeys = Object.keys(req.body);
+  const invalidKeys = requestKeys.filter((key) => !allowedKeys.includes(key));
+  if (
+    !req.body.title ||
+    !req.body.description ||
+    !req.body.category ||
+    invalidKeys.length > 0
+  ) {
     return res.status(400).json({
       message: "Invalid request data.",
     });
@@ -34,7 +42,10 @@ questionsRouter.post(
   "/:questionId/answers",
   [validateCreateAnswer],
   async (req, res) => {
-    if (!req.body.content) {
+    const allowedKeys = ["content"];
+    const requestKeys = Object.keys(req.body);
+    const invalidKeys = requestKeys.filter((key) => !allowedKeys.includes(key));
+    if (!req.body.content || invalidKeys.length > 0) {
       return res.status(400).json({
         message: "Invalid request data.",
       });
@@ -71,7 +82,14 @@ questionsRouter.post(
 questionsRouter.post("/:questionId/vote", async (req, res) => {
   const voteScore = req.body.vote;
   const { questionId } = req.params;
-  if (!voteScore || (voteScore !== 1 && voteScore !== -1)) {
+  const allowedKeys = ["vote"];
+  const requestKeys = Object.keys(req.body);
+  const invalidKeys = requestKeys.filter((key) => !allowedKeys.includes(key));
+  if (
+    !voteScore ||
+    (voteScore !== 1 && voteScore !== -1) ||
+    invalidKeys.length > 0
+  ) {
     return res.status(400).json({ message: "Invalid vote value." });
   }
   const questionResult = await connectionPool.query(
@@ -99,9 +117,25 @@ questionsRouter.post("/:questionId/vote", async (req, res) => {
   }
 });
 
-questionsRouter.get("/", async (req, res) => {
+questionsRouter.get("/search", async (req, res) => {
+  const { category, title } = req.query;
+  if (!category && !title) {
+    return res.status(400).json({ message: "Invalid search parameters." });
+  }
+  let query;
+  let values;
+  if (category && title) {
+    query = `select * from questions where category ilike $1 and title ilike $2`;
+    values = [`%${category}%`, `%${title}%`];
+  } else if (category && !title) {
+    query = `select * from questions where category ilike $1 `;
+    values = [`%${category}%`];
+  } else if (!category && title) {
+    query = `select * from questions where title ilike $1 `;
+    values = [`%${title}%`];
+  }
   try {
-    const results = await connectionPool.query(`select * from questions`);
+    const results = await connectionPool.query(query, values);
     return res.status(200).json({ data: results.rows });
   } catch (err) {
     return res.status(500).json({
@@ -128,25 +162,9 @@ questionsRouter.get("/:questionId", async (req, res) => {
   }
 });
 
-questionsRouter.get("/search", async (req, res) => {
-  const { category, title } = req.query;
-  if (!category && !title) {
-    return res.status(400).json({ message: "Invalid search parameters." });
-  }
-  let query;
-  let values;
-  if (category && title) {
-    query = `select * from questions where category ilike $1 and title ilike $2`;
-    values = [`%${category}%`, `%${title}%`];
-  } else if (category && !title) {
-    query = `select * from questions where category ilike $1 `;
-    values = [`%${category}%`];
-  } else if (!category && title) {
-    query = `select * from questions where title ilike $1 `;
-    values = [`%${title}%`];
-  }
+questionsRouter.get("/", async (req, res) => {
   try {
-    const results = await connectionPool.query(query, values);
+    const results = await connectionPool.query(`select * from questions`);
     return res.status(200).json({ data: results.rows });
   } catch (err) {
     return res.status(500).json({
@@ -181,7 +199,15 @@ questionsRouter.get("/:questionId/answers", async (req, res) => {
 });
 
 questionsRouter.put("/:questionId", async (req, res) => {
-  if (!req.body.title || !req.body.description || !req.body.category) {
+  const allowedKeys = ["title", "description", "category"];
+  const requestKeys = Object.keys(req.body);
+  const invalidKeys = requestKeys.filter((key) => !allowedKeys.includes(key));
+  if (
+    !req.body.title ||
+    !req.body.description ||
+    !req.body.category ||
+    invalidKeys.length > 0
+  ) {
     return res.status(400).json({
       message: "Invalid request data.",
     });
@@ -230,9 +256,6 @@ questionsRouter.delete("/:questionId", async (req, res) => {
         message: "Question not found.",
       });
     }
-    await connectionPool.query(`delete from answers where question_id=$1`, [
-      questionIdFromClient,
-    ]);
     return res
       .status(200)
       .json({ message: "Question post has been deleted successfully." });
