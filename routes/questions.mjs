@@ -4,15 +4,14 @@ import connectionPool from "../utils/db.mjs";
 const questionsRouter = Router();
 
 questionsRouter.post("/", async (req, res) => {
-    if (!req.body.title || !req.body.description || !req.body.category) {
-        return res.status(400).json({
-          message: "Invalid request data.",
-        });
-      }
-    const newQuestion = {
+  if (!req.body.title || !req.body.description || !req.body.category) {
+    return res.status(400).json({
+      message: "Invalid request data.",
+    });
+  }
+  const newQuestion = {
     ...req.body,
   };
-
   try {
     await connectionPool.query(
       `insert into questions (title, description, category)
@@ -30,30 +29,43 @@ questionsRouter.post("/", async (req, res) => {
   }
 });
 
-questionsRouter.get("/", async (req, res) => {
+questionsRouter.post("/:questionId/answers", async (req, res) => {
+  if (!req.body.content) {
+    return res.status(400).json({
+      message: "Invalid request data.",
+    });
+  }
+  const { questionId } = req.params;
+  const newAnswer = {
+    ...req.body,
+  };
   try {
-    const results = await connectionPool.query(`select * from questions`);
-    return res.status(200).json({ data: results.rows });
+    const results = await connectionPool.query(
+      `select * from questions where id = $1`,
+      [questionId]
+    );
+    if (!results.rows[0]) {
+      return res.status(404).json({ message: "Question not found." });
+    }
+    await connectionPool.query(
+      `insert into answers (content, question_id)
+          values ($1,$2)`,
+      [newAnswer.content, questionId]
+    );
+    return res.status(201).json({
+      message: "Answer created successfully.",
+    });
   } catch (err) {
-    return res.status(500).json({
-      message:  "Unable to fetch questions.",
+    res.status(500).json({
+      message: "Unable to create question.",
     });
   }
 });
 
-questionsRouter.get("/:id", async (req, res) => {
+questionsRouter.get("/", async (req, res) => {
   try {
-    const questionIdFromClient = req.params.id;
-    const results = await connectionPool.query(
-      `select * from questions where id = $1`,
-      [questionIdFromClient]
-    );
-    if (!results.rows[0]) {
-      return res
-        .status(404)
-        .json({ message: "Question not found." });
-    }
-    return res.status(200).json({data:results.rows[0]});
+    const results = await connectionPool.query(`select * from questions`);
+    return res.status(200).json({ data: results.rows });
   } catch (err) {
     return res.status(500).json({
       message: "Unable to fetch questions.",
@@ -61,14 +73,84 @@ questionsRouter.get("/:id", async (req, res) => {
   }
 });
 
-questionsRouter.put("/:id", async (req, res) => {
-    if (!req.body.title || !req.body.description || !req.body.category) {
-        return res.status(400).json({
-          message: "Invalid request data.",
-        });
-      }
-    try {
-    const questionIdFromClient = req.params.id;
+questionsRouter.get("/:questionId", async (req, res) => {
+  try {
+    const questionIdFromClient = req.params.questionId;
+    const results = await connectionPool.query(
+      `select * from questions where id = $1`,
+      [questionIdFromClient]
+    );
+    if (!results.rows[0]) {
+      return res.status(404).json({ message: "Question not found." });
+    }
+    return res.status(200).json({ data: results.rows[0] });
+  } catch (err) {
+    return res.status(500).json({
+      message: "Unable to fetch questions.",
+    });
+  }
+});
+
+questionsRouter.get("/search", async (req, res) => {
+  const { category, title } = req.query;
+  if (!category && !title) {
+    return res.status(400).json({ message: "Invalid search parameters." });
+  }
+  let query;
+  let values;
+  if (category && title) {
+    query = `select * from questions where category ilike $1 and title ilike $2`;
+    values = [`%${category}%`, `%${title}%`];
+  } else if (category && !title) {
+    query = `select * from questions where category ilike $1 `;
+    values = [`%${category}%`];
+  } else if (!category && title) {
+    query = `select * from questions where title ilike $1 `;
+    values = [`%${title}%`];
+  }
+  try {
+    const results = await connectionPool.query(query, values);
+    return res.status(200).json({ data: results.rows });
+  } catch (err) {
+    return res.status(500).json({
+      message: "Unable to fetch questions.",
+    });
+  }
+});
+
+questionsRouter.get("/:questionId/answers", async (req, res) => {
+  const { questionId } = req.params;
+  try {
+    const questionResult = await connectionPool.query(
+      `select * from questions where id = $1`,
+      [questionId]
+    );
+    if (!questionResult.rows[0]) {
+      return res.status(404).json({ message: "Question not found." });
+    }
+    const answerResult = await connectionPool.query(
+      `select * from answers where question_id=$1`,
+      [questionId]
+    );
+    return res.status(200).json({
+      data: answerResult.rows[0],
+    });
+  } catch (err) {
+    res.status(500).json({
+      message: "Unable to fetch answers.",
+      error: err.message,
+    });
+  }
+});
+
+questionsRouter.put("/:questionId", async (req, res) => {
+  if (!req.body.title || !req.body.description || !req.body.category) {
+    return res.status(400).json({
+      message: "Invalid request data.",
+    });
+  }
+  try {
+    const questionIdFromClient = req.params.questionId;
     const updatedQuestion = { ...req.body };
     const results = await connectionPool.query(
       `update questions
@@ -90,8 +172,8 @@ questionsRouter.put("/:id", async (req, res) => {
       });
     }
     return res.status(200).json({
-        "message": "Question updated successfully."
-      });
+      message: "Question updated successfully.",
+    });
   } catch (err) {
     return res.status(500).json({
       message: "Unable to fetch questions.",
@@ -99,22 +181,47 @@ questionsRouter.put("/:id", async (req, res) => {
   }
 });
 
-questionsRouter.delete("/:id", async (req, res) => {
+questionsRouter.delete("/:questionId", async (req, res) => {
   try {
-    const questionIdFromClient = req.params.id;
+    const questionIdFromClient = req.params.questionId;
     const results = await connectionPool.query(
       `delete from questions where id = $1`,
       [questionIdFromClient]
     );
     if (results.rowCount === 0) {
       return res.status(404).json({
-        message:  "Question not found.",
+        message: "Question not found.",
       });
     }
-    return res.status(200).json({ message: "Question post has been deleted successfully." });
+    return res
+      .status(200)
+      .json({ message: "Question post has been deleted successfully." });
   } catch (err) {
     return res.status(500).json({
       message: "Unable to delete question.",
+    });
+  }
+});
+
+questionsRouter.delete("/:questionId/answers", async (req, res) => {
+  const { questionId } = req.params;
+  try {
+    const questionResult = await connectionPool.query(
+      `select * from questions where id = $1`,
+      [questionId]
+    );
+    if (!questionResult.rows[0]) {
+      return res.status(404).json({ message: "Question not found." });
+    }
+    await connectionPool.query(`delete from answers where question_id = $1`, [
+      questionId,
+    ]);
+    return res
+      .status(200)
+      .json({ message: "All answers for the question have been deleted successfully." });
+  } catch (err) {
+    return res.status(500).json({
+      message: "Unable to delete answers.",
     });
   }
 });
