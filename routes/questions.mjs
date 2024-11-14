@@ -4,6 +4,19 @@ import { validateCreateAnswer } from "../middlewares/answerValidation.mjs";
 
 const questionsRouter = Router();
 
+/**
+ * @swagger
+ * /questions:
+ *   post:
+ *     description: Create a new question
+ *     responses:
+ *       201:
+ *         description: Question created successfully
+ *       400:
+ *         description: Invalid request data
+ *       500:
+ *         description: Unable to create question
+ */
 questionsRouter.post("/", async (req, res) => {
   const allowedKeys = ["title", "description", "category"];
   const requestKeys = Object.keys(req.body);
@@ -38,6 +51,21 @@ questionsRouter.post("/", async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /questions/{questionId}/answers:
+ *   post:
+ *     description: Create a new answer for a specific question
+ *     responses:
+ *       201:
+ *         description: Answer created successfully
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Unable to create answer
+ */
 questionsRouter.post(
   "/:questionId/answers",
   [validateCreateAnswer],
@@ -79,6 +107,22 @@ questionsRouter.post(
   }
 );
 
+/**
+ * @swagger
+ * /questions/{questionId}/vote:
+ *   post:
+ *     description: Cast a vote (upvote or downvote) on a specific question. Only values 1 (upvote) or -1 (downvote) are accepted.
+ *     responses:
+ *       200:
+ *         description: Vote recorded successfully
+ *       400:
+ *         description: Invalid vote value
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Unable to vote question
+ */
+
 questionsRouter.post("/:questionId/vote", async (req, res) => {
   const voteScore = req.body.vote;
   const { questionId } = req.params;
@@ -117,6 +161,20 @@ questionsRouter.post("/:questionId/vote", async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /questions/search:
+ *   get:
+ *     description: Search questions by category and/or title
+ *     responses:
+ *       200:
+ *         description: List of questions
+ *       400:
+ *         description: Invalid search parameters
+ *       500:
+ *         description: Unable to fetch questions
+ */
+
 questionsRouter.get("/search", async (req, res) => {
   const { category, title } = req.query;
   if (!category && !title) {
@@ -144,6 +202,20 @@ questionsRouter.get("/search", async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /questions/{questionId}:
+ *   get:
+ *     description: Get a specific question by ID
+ *     responses:
+ *       200:
+ *         description: Question details
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Unable to fetch question
+ */
+
 questionsRouter.get("/:questionId", async (req, res) => {
   try {
     const questionIdFromClient = req.params.questionId;
@@ -162,6 +234,18 @@ questionsRouter.get("/:questionId", async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /questions:
+ *   get:
+ *     description: Get a list of all questions
+ *     responses:
+ *       200:
+ *         description: List of all questions
+ *       500:
+ *         description: Unable to fetch questions
+ */
+
 questionsRouter.get("/", async (req, res) => {
   try {
     const results = await connectionPool.query(`select * from questions`);
@@ -172,6 +256,20 @@ questionsRouter.get("/", async (req, res) => {
     });
   }
 });
+
+/**
+ * @swagger
+ * /questions/{questionId}/answers:
+ *   get:
+ *     description: Get all answers for a specific question
+ *     responses:
+ *       200:
+ *         description: List of answers for the question
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Unable to fetch answers
+ */
 
 questionsRouter.get("/:questionId/answers", async (req, res) => {
   const { questionId } = req.params;
@@ -197,6 +295,22 @@ questionsRouter.get("/:questionId/answers", async (req, res) => {
     });
   }
 });
+
+/**
+ * @swagger
+ * /questions/{questionId}:
+ *   put:
+ *     description: Update a specific question by ID
+ *     responses:
+ *       200:
+ *         description: Question updated successfully
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Unable to update question
+ */
 
 questionsRouter.put("/:questionId", async (req, res) => {
   const allowedKeys = ["title", "description", "category"];
@@ -244,6 +358,20 @@ questionsRouter.put("/:questionId", async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /questions/{questionId}:
+ *   delete:
+ *     description: Delete a specific question by ID
+ *     responses:
+ *       200:
+ *         description: Question deleted successfully
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Unable to delete question
+ */
+
 questionsRouter.delete("/:questionId", async (req, res) => {
   try {
     const questionIdFromClient = req.params.questionId;
@@ -265,6 +393,20 @@ questionsRouter.delete("/:questionId", async (req, res) => {
     });
   }
 });
+
+/**
+ * @swagger
+ * /questions/{questionId}/answers:
+ *   delete:
+ *     description: Delete all answers for a specific question
+ *     responses:
+ *       200:
+ *         description: All answers for the question have been deleted successfully
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Unable to delete answers
+ */
 
 questionsRouter.delete("/:questionId/answers", async (req, res) => {
   const { questionId } = req.params;

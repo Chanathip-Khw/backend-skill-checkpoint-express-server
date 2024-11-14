@@ -3,6 +3,22 @@ import connectionPool from "../utils/db.mjs";
 
 const answersRouter = Router();
 
+/**
+ * @swagger
+ * /answers/{answerId}/vote:
+ *   post:
+ *     description: Cast a vote (upvote or downvote) on a specific answer. Only values 1 (upvote) or -1 (downvote) are accepted.
+ *     responses:
+ *       200:
+ *         description: Vote on the answer has been recorded successfully
+ *       400:
+ *         description: Invalid vote value or request data. Only `1` or `-1` are allowed for the vote.
+ *       404:
+ *         description: Answer not found
+ *       500:
+ *         description: Unable to vote on the answer due to server error
+ */
+
 answersRouter.post("/:answerId/vote", async (req, res) => {
     const voteScore = req.body.vote;
     const { answerId } = req.params;
